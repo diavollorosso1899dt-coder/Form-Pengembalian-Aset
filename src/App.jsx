@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import html2canvas from 'html2canvas';
+import jsPDF from 'jspdf';
 import { 
   ClipboardList, Smartphone, FileText, CloudUpload, Image as ImageIcon, FileType, Printer, 
   RefreshCw, ArrowLeftRight, Package, Trash2, Plus, Camera, X, PenTool, CheckCircle, 
@@ -102,15 +104,14 @@ const MASTER_ITEMS = {
 };
 
 export default function App() {
-  const [viewMode, setViewMode] = useState('a4');
-  const [activeTab, setActiveTab] = useState('editor'); // 'editor' | 'database'
+  const [activeTab, setActiveTab] = useState('editor');
   const [isPdfLoading, setIsPdfLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [hasSubmitted, setHasSubmitted] = useState(false);
   const [statusMsg, setStatusMsg] = useState(null);
 
   // Web App Script URL
-  const [gasUrl, setGasUrl] = useState(() => {
+  const [gasUrl] = useState(() => {
     return localStorage.getItem('bapa_gas_url') || "https://script.google.com/macros/s/AKfycbx8wcNzB8I8Vx3i-Q8Viubi83NtxifYOu6KSZFPv6LZA1osBTrGj2pTwRbt148Q1uEb/exec";
   });
 
@@ -154,7 +155,6 @@ export default function App() {
     { title: 'Diterima Oleh,', name: 'Agus Supriyadi', role: 'Head of Asset & Logistics' }
   ]);
 
-  const [receipts, setReceipts] = useState([]);
   const [historyLogs, setHistoryLogs] = useState(() => {
     return JSON.parse(localStorage.getItem('bapa_history_logs') || '[]');
   });
@@ -168,7 +168,6 @@ export default function App() {
         if (parsed.formData) setFormData(parsed.formData);
         if (parsed.items) setItems(parsed.items);
         if (parsed.signatures) setSignatures(parsed.signatures);
-        if (parsed.receipts) setReceipts(parsed.receipts);
         if (parsed.selectedSenderDrop) setSelectedSenderDrop(parsed.selectedSenderDrop);
         if (parsed.selectedReceiverDrop) setSelectedReceiverDrop(parsed.selectedReceiverDrop);
       } catch (e) {
@@ -181,12 +180,12 @@ export default function App() {
     if (!formData.docNumber) return;
     try {
       localStorage.setItem('bapa_form_draft_v2', JSON.stringify({
-        formData, items, signatures, receipts, selectedSenderDrop, selectedReceiverDrop
+        formData, items, signatures, selectedSenderDrop, selectedReceiverDrop
       }));
     } catch (e) {
-      console.warn("Storage quota limit reached");
+      console.warn("Storage limit reached");
     }
-  }, [formData, items, signatures, receipts, selectedSenderDrop, selectedReceiverDrop]);
+  }, [formData, items, signatures, selectedSenderDrop, selectedReceiverDrop]);
 
   // Total Quantity Calculation
   const totalQuantity = useMemo(() => {
@@ -281,7 +280,6 @@ export default function App() {
     setTimeout(() => setStatusMsg(null), 4000);
   };
 
-  // Open Smart Asset Selector Modal
   const openAssetSelector = (itemId) => {
     setTargetItemForSelector(itemId);
     setAssetSearchQuery('');
@@ -330,7 +328,7 @@ export default function App() {
         kategori: item.uom,
         qty: item.qty,
         kondisi: `${item.condition}${item.itemReason ? ' - ' + item.itemReason : ''}`,
-        adaGambar: item.foto ? "Ada Foto" : "Tidak Ada"
+        adaGambar: item.image ? "Ada Foto" : "Tidak Ada"
       }))
     };
 
@@ -370,48 +368,61 @@ export default function App() {
     }
   };
 
-  // Print & Export Handlers
+  // Print & Export Handlers (Direct html2canvas & jsPDF npm imports)
   const handlePrint = () => window.print();
 
   const handleDownloadImage = async () => {
-    if (!window.html2canvas) return showToast('Memuat pustaka gambar...', 'error');
     const el = document.getElementById('print-wrapper');
-    if (el) {
-      try {
-        showToast('Memproses berkas PNG high-resolution...', 'info');
-        const canvas = await window.html2canvas(el, { scale: 3, backgroundColor: '#ffffff', useCORS: true });
-        const link = document.createElement('a');
-        link.download = `Berita_Acara_${formData.docNumber.replace(/\//g, '_')}.png`;
-        link.href = canvas.toDataURL('image/png');
-        link.click();
-        showToast('Gambar Berita Acara Berhasil Diunduh!', 'success');
-      } catch (err) {
-        showToast('Gagal memproses gambar.', 'error');
-      }
+    if (!el) return;
+
+    try {
+      showToast('Memproses berkas PNG high-resolution...', 'info');
+      const canvas = await html2canvas(el, { 
+        scale: 2, 
+        backgroundColor: '#ffffff', 
+        useCORS: true,
+        allowTaint: true,
+        logging: false
+      });
+      const link = document.createElement('a');
+      link.download = `Berita_Acara_${formData.docNumber.replace(/\//g, '_')}.png`;
+      link.href = canvas.toDataURL('image/png', 1.0);
+      link.click();
+      showToast('Gambar Berita Acara Berhasil Diunduh!', 'success');
+    } catch (err) {
+      console.error(err);
+      showToast('Gagal memproses gambar.', 'error');
     }
   };
 
   const handleDownloadPDF = async () => {
-    if (!window.html2canvas || !window.jspdf) return showToast('Memuat pustaka PDF...', 'error');
     const el = document.getElementById('print-wrapper');
-    if (el) {
-      try {
-        setIsPdfLoading(true);
-        showToast('Menyusun dokumen PDF A4...', 'info');
-        const canvas = await window.html2canvas(el, { scale: 2, backgroundColor: '#ffffff', useCORS: true });
-        const imgData = canvas.toDataURL('image/jpeg', 0.95);
-        const { jsPDF } = window.jspdf;
-        const pdf = new jsPDF('p', 'mm', 'a4');
-        const imgWidth = 210;
-        const imgHeight = (canvas.height * imgWidth) / canvas.width;
-        pdf.addImage(imgData, 'JPEG', 0, 0, imgWidth, imgHeight);
-        pdf.save(`Berita_Acara_${formData.docNumber.replace(/\//g, '_')}.pdf`);
-        showToast('PDF Berita Acara Berhasil Diunduh!', 'success');
-      } catch (err) {
-        showToast('Gagal membuat PDF.', 'error');
-      } finally {
-        setIsPdfLoading(false);
-      }
+    if (!el) return;
+
+    try {
+      setIsPdfLoading(true);
+      showToast('Menyusun dokumen PDF A4...', 'info');
+      
+      const canvas = await html2canvas(el, { 
+        scale: 2, 
+        backgroundColor: '#ffffff', 
+        useCORS: true,
+        allowTaint: true,
+        logging: false
+      });
+      
+      const imgData = canvas.toDataURL('image/jpeg', 0.95);
+      const pdf = new jsPDF('p', 'mm', 'a4');
+      const imgWidth = 210;
+      const imgHeight = (canvas.height * imgWidth) / canvas.width;
+      pdf.addImage(imgData, 'JPEG', 0, 0, imgWidth, imgHeight);
+      pdf.save(`Berita_Acara_${formData.docNumber.replace(/\//g, '_')}.pdf`);
+      showToast('PDF Berita Acara Berhasil Diunduh!', 'success');
+    } catch (err) {
+      console.error(err);
+      showToast('Gagal membuat PDF.', 'error');
+    } finally {
+      setIsPdfLoading(false);
     }
   };
 
