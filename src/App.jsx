@@ -110,6 +110,9 @@ export default function App() {
   const [hasSubmitted, setHasSubmitted] = useState(false);
   const [statusMsg, setStatusMsg] = useState(null);
 
+  // Active Focused Item Suggestions ID
+  const [focusedItemId, setFocusedItemId] = useState(null);
+
   // Web App Script URL
   const [gasUrl] = useState(() => {
     return localStorage.getItem('bapa_gas_url') || "https://script.google.com/macros/s/AKfycbx8wcNzB8I8Vx3i-Q8Viubi83NtxifYOu6KSZFPv6LZA1osBTrGj2pTwRbt148Q1uEb/exec";
@@ -294,6 +297,15 @@ export default function App() {
     setSelectorModalOpen(false);
   };
 
+  // Inline Suggestions Helper
+  const getSuggestionsForItem = (item) => {
+    const cat = item.accountCategory || 'Peralatan';
+    const catItems = MASTER_ITEMS[cat] || [];
+    const query = (item.description || '').toLowerCase().trim();
+    if (!query) return catItems.slice(0, 6);
+    return catItems.filter(i => i.name.toLowerCase().includes(query)).slice(0, 8);
+  };
+
   // Submit to Google Sheets (doPost)
   const handleSubmitToSheet = async () => {
     if (hasSubmitted) {
@@ -440,6 +452,19 @@ export default function App() {
   return (
     <div className="min-h-screen bg-slate-900 font-sans text-slate-100 flex flex-col">
       
+      {/* HTML Datalists for Native Autocomplete Suggestions */}
+      <datalist id="datalist-peralatan">
+        {MASTER_ITEMS['Peralatan'].map((item, idx) => (
+          <option key={idx} value={item.name} />
+        ))}
+      </datalist>
+
+      <datalist id="datalist-perlengkapan">
+        {MASTER_ITEMS['Perlengkapan Tetap'].map((item, idx) => (
+          <option key={idx} value={item.name} />
+        ))}
+      </datalist>
+
       {/* Toast Notification */}
       {statusMsg && (
         <div className="fixed top-20 left-1/2 -translate-x-1/2 z-50 animate-in slide-in-from-top duration-300 w-full max-w-lg px-4">
@@ -680,107 +705,141 @@ export default function App() {
 
                 {/* Asset Item Cards List */}
                 <div className="space-y-3 max-h-[420px] overflow-y-auto pr-1">
-                  {items.map((item, index) => (
-                    <div key={item.id} className="bg-slate-900/90 border border-slate-800 rounded-xl p-3 space-y-2 relative group hover:border-slate-700 transition">
-                      
-                      {/* Row 1: Kategori & Nama Aset Selector */}
-                      <div className="flex items-center gap-2">
-                        <select 
-                          value={item.accountCategory} 
-                          onChange={(e) => handleItemChange(item.id, 'accountCategory', e.target.value)} 
-                          className="w-1/3 bg-slate-950 border border-slate-800 rounded-lg px-2 py-1.5 text-[11px] font-bold text-slate-300"
-                        >
-                          {ACCOUNT_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
-                        </select>
+                  {items.map((item, index) => {
+                    const inlineSuggestions = getSuggestionsForItem(item);
+                    const showSuggestions = focusedItemId === item.id && inlineSuggestions.length > 0;
 
-                        <div className="w-2/3 flex gap-1">
-                          <input 
-                            type="text" 
-                            placeholder="Nama Aset / Barang..." 
-                            value={item.description} 
-                            onChange={(e) => handleItemChange(item.id, 'description', e.target.value)} 
-                            className="w-full bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-white font-medium focus:border-red-500 focus:outline-none" 
-                          />
-                          <button 
-                            type="button" 
-                            onClick={() => openAssetSelector(item.id)} 
-                            className="bg-slate-800 hover:bg-slate-700 text-slate-300 px-2 rounded-lg text-xs flex items-center justify-center shrink-0" 
-                            title="Pilih dari Master Data (400+ Item)"
+                    return (
+                      <div key={item.id} className="bg-slate-900/90 border border-slate-800 rounded-xl p-3 space-y-2 relative group hover:border-slate-700 transition">
+                        
+                        {/* Row 1: Kategori & Nama Aset Selector */}
+                        <div className="flex items-center gap-2">
+                          <select 
+                            value={item.accountCategory} 
+                            onChange={(e) => handleItemChange(item.id, 'accountCategory', e.target.value)} 
+                            className="w-1/3 bg-slate-950 border border-slate-800 rounded-lg px-2 py-1.5 text-[11px] font-bold text-slate-300"
                           >
-                            <Search size={13} />
+                            {ACCOUNT_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+                          </select>
+
+                          {/* Autocomplete Input Container */}
+                          <div className="w-2/3 flex gap-1 relative">
+                            <input 
+                              type="text" 
+                              list={item.accountCategory === 'Peralatan' ? 'datalist-peralatan' : 'datalist-perlengkapan'}
+                              placeholder="Ketik & Pilih Nama Aset..." 
+                              value={item.description} 
+                              onFocus={() => setFocusedItemId(item.id)}
+                              onBlur={() => setTimeout(() => setFocusedItemId(null), 200)}
+                              onChange={(e) => handleItemChange(item.id, 'description', e.target.value)} 
+                              className="w-full bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-white font-medium focus:border-red-500 focus:outline-none" 
+                            />
+                            <button 
+                              type="button" 
+                              onClick={() => openAssetSelector(item.id)} 
+                              className="bg-slate-800 hover:bg-slate-700 text-slate-300 px-2 rounded-lg text-xs flex items-center justify-center shrink-0" 
+                              title="Pilih dari Master Data (400+ Item)"
+                            >
+                              <Search size={13} />
+                            </button>
+
+                            {/* Floating Suggestion Box Overlay */}
+                            {showSuggestions && (
+                              <div className="absolute top-full left-0 w-full mt-1 bg-slate-950 border border-slate-700 rounded-xl shadow-2xl z-30 max-h-48 overflow-y-auto divide-y divide-slate-800 animate-in fade-in zoom-in-95 duration-150">
+                                <div className="px-2 py-1 bg-slate-900 text-[10px] font-bold text-slate-400 uppercase tracking-wider flex justify-between items-center">
+                                  <span>Rekomendasi Master Aset</span>
+                                  <span className="text-[9px] text-red-400 font-normal">{item.accountCategory}</span>
+                                </div>
+                                {inlineSuggestions.map((sug, sIdx) => (
+                                  <button
+                                    key={sIdx}
+                                    type="button"
+                                    onMouseDown={(e) => {
+                                      e.preventDefault();
+                                      handleItemChange(item.id, 'description', sug.name);
+                                      setFocusedItemId(null);
+                                    }}
+                                    className="w-full text-left px-3 py-2 text-xs text-slate-200 hover:bg-red-950/60 hover:text-white flex justify-between items-center transition"
+                                  >
+                                    <span>{sug.name}</span>
+                                    <Check size={12} className="text-emerald-400 opacity-0 hover:opacity-100" />
+                                  </button>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+
+                          <button 
+                            onClick={() => removeItem(item.id)} 
+                            className="text-slate-500 hover:text-rose-400 p-1 rounded transition" 
+                            title="Hapus Item"
+                          >
+                            <Trash2 size={14} />
                           </button>
                         </div>
 
-                        <button 
-                          onClick={() => removeItem(item.id)} 
-                          className="text-slate-500 hover:text-rose-400 p-1 rounded transition" 
-                          title="Hapus Item"
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                      </div>
+                        {/* Row 2: Qty, Satuan, Kondisi */}
+                        <div className="grid grid-cols-3 gap-2">
+                          <div>
+                            <label className="text-[9px] font-bold text-slate-500 block mb-0.5">QTY</label>
+                            <input 
+                              type="number" 
+                              min="1" 
+                              value={item.qty} 
+                              onChange={(e) => handleItemChange(item.id, 'qty', e.target.value)} 
+                              className="w-full bg-slate-950 border border-slate-800 rounded-lg px-2 py-1 text-xs font-bold text-center text-white" 
+                            />
+                          </div>
+                          <div>
+                            <label className="text-[9px] font-bold text-slate-500 block mb-0.5">SATUAN</label>
+                            <select 
+                              value={item.uom} 
+                              onChange={(e) => handleItemChange(item.id, 'uom', e.target.value)} 
+                              className="w-full bg-slate-950 border border-slate-800 rounded-lg px-1.5 py-1 text-xs text-center text-slate-300"
+                            >
+                              {UOM_OPTIONS.map((g, idx) => (
+                                <optgroup key={idx} label={g.group}>
+                                  {g.items.map(u => <option key={u} value={u}>{u}</option>)}
+                                </optgroup>
+                              ))}
+                            </select>
+                          </div>
+                          <div>
+                            <label className="text-[9px] font-bold text-slate-500 block mb-0.5">KONDISI</label>
+                            <select 
+                              value={item.condition} 
+                              onChange={(e) => handleItemChange(item.id, 'condition', e.target.value)} 
+                              className="w-full bg-slate-950 border border-slate-800 rounded-lg px-1.5 py-1 text-xs font-bold text-center text-rose-400"
+                            >
+                              {CONDITION_OPTIONS.map(c => <option key={c} value={c}>{c}</option>)}
+                            </select>
+                          </div>
+                        </div>
 
-                      {/* Row 2: Qty, Satuan, Kondisi */}
-                      <div className="grid grid-cols-3 gap-2">
-                        <div>
-                          <label className="text-[9px] font-bold text-slate-500 block mb-0.5">QTY</label>
+                        {/* Row 3: Alasan Pengembalian & Foto */}
+                        <div className="flex items-center gap-2">
                           <input 
-                            type="number" 
-                            min="1" 
-                            value={item.qty} 
-                            onChange={(e) => handleItemChange(item.id, 'qty', e.target.value)} 
-                            className="w-full bg-slate-950 border border-slate-800 rounded-lg px-2 py-1 text-xs font-bold text-center text-white" 
+                            type="text" 
+                            placeholder="* Alasan / Detail Kerusakan (Jelas)..." 
+                            value={item.itemReason || ''} 
+                            onChange={(e) => handleItemChange(item.id, 'itemReason', e.target.value)} 
+                            className="w-full bg-slate-950 border border-rose-950/80 rounded-lg px-2.5 py-1 text-xs text-rose-300 placeholder:text-rose-900/60 focus:border-rose-600 focus:outline-none" 
                           />
+                          <label className="bg-sky-950 border border-sky-800/60 text-sky-300 hover:bg-sky-900 px-2 py-1 rounded-lg text-[10px] font-bold cursor-pointer flex items-center gap-1 shrink-0">
+                            <Camera size={11} /> + Foto
+                            <input type="file" accept="image/*" className="hidden" onChange={(e) => handleItemImageUpload(item.id, e)} />
+                          </label>
                         </div>
-                        <div>
-                          <label className="text-[9px] font-bold text-slate-500 block mb-0.5">SATUAN</label>
-                          <select 
-                            value={item.uom} 
-                            onChange={(e) => handleItemChange(item.id, 'uom', e.target.value)} 
-                            className="w-full bg-slate-950 border border-slate-800 rounded-lg px-1.5 py-1 text-xs text-center text-slate-300"
-                          >
-                            {UOM_OPTIONS.map((g, idx) => (
-                              <optgroup key={idx} label={g.group}>
-                                {g.items.map(u => <option key={u} value={u}>{u}</option>)}
-                              </optgroup>
-                            ))}
-                          </select>
-                        </div>
-                        <div>
-                          <label className="text-[9px] font-bold text-slate-500 block mb-0.5">KONDISI</label>
-                          <select 
-                            value={item.condition} 
-                            onChange={(e) => handleItemChange(item.id, 'condition', e.target.value)} 
-                            className="w-full bg-slate-950 border border-slate-800 rounded-lg px-1.5 py-1 text-xs font-bold text-center text-rose-400"
-                          >
-                            {CONDITION_OPTIONS.map(c => <option key={c} value={c}>{c}</option>)}
-                          </select>
-                        </div>
-                      </div>
 
-                      {/* Row 3: Alasan Pengembalian & Foto */}
-                      <div className="flex items-center gap-2">
-                        <input 
-                          type="text" 
-                          placeholder="* Alasan / Detail Kerusakan (Jelas)..." 
-                          value={item.itemReason || ''} 
-                          onChange={(e) => handleItemChange(item.id, 'itemReason', e.target.value)} 
-                          className="w-full bg-slate-950 border border-rose-950/80 rounded-lg px-2.5 py-1 text-xs text-rose-300 placeholder:text-rose-900/60 focus:border-rose-600 focus:outline-none" 
-                        />
-                        <label className="bg-sky-950 border border-sky-800/60 text-sky-300 hover:bg-sky-900 px-2 py-1 rounded-lg text-[10px] font-bold cursor-pointer flex items-center gap-1 shrink-0">
-                          <Camera size={11} /> + Foto
-                          <input type="file" accept="image/*" className="hidden" onChange={(e) => handleItemImageUpload(item.id, e)} />
-                        </label>
+                        {item.image && (
+                          <div className="relative w-12 h-12 rounded-lg overflow-hidden border border-slate-700 mt-1">
+                            <img src={item.image} alt="Preview" className="w-full h-full object-cover" />
+                            <button onClick={() => handleItemChange(item.id, 'image', null)} className="absolute top-0 right-0 bg-rose-600 text-white p-0.5 rounded-bl"><X size={10}/></button>
+                          </div>
+                        )}
                       </div>
-
-                      {item.image && (
-                        <div className="relative w-12 h-12 rounded-lg overflow-hidden border border-slate-700 mt-1">
-                          <img src={item.image} alt="Preview" className="w-full h-full object-cover" />
-                          <button onClick={() => handleItemChange(item.id, 'image', null)} className="absolute top-0 right-0 bg-rose-600 text-white p-0.5 rounded-bl"><X size={10}/></button>
-                        </div>
-                      )}
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
 
