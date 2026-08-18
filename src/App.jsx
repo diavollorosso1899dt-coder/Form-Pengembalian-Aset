@@ -326,7 +326,7 @@ export default function App() {
     }
 
     setIsSubmitting(true);
-    showToast('Sedang menghubungkan ke Google Sheets...', 'info');
+    showToast('Sedang mengunggah foto & data ke Google Sheets...', 'info');
 
     // Tanggal Penerimaan Otomatis (Format DD/MM/YYYY)
     const todayFormatted = new Date().toLocaleDateString('id-ID', {
@@ -349,6 +349,7 @@ export default function App() {
         qty: item.qty,
         kondisi: `${item.condition}${item.itemReason ? ' - ' + item.itemReason : ''}`,
         adaGambar: item.image ? "Ada Foto" : "Tidak Ada",
+        fotoBase64: item.image || "",
         tanggalPenerimaan: todayFormatted
       }))
     };
@@ -374,14 +375,15 @@ export default function App() {
           totalItem: items.length,
           totalQty: totalQuantity,
           reason: formData.reason,
-          tanggalPenerimaan: todayFormatted
+          tanggalPenerimaan: todayFormatted,
+          hasPhoto: items.some(i => i.image)
         },
         ...historyLogs
       ];
       setHistoryLogs(newHistory);
       localStorage.setItem('bapa_history_logs', JSON.stringify(newHistory));
 
-      showToast(`✅ Data Berita Acara ${formData.docNumber} Berhasil Dikirim (Tanggal Penerimaan: ${todayFormatted})!`, 'success');
+      showToast(`✅ Berita Acara ${formData.docNumber} + Foto Berhasil Disimpan ke Google Sheets!`, 'success');
     } catch (err) {
       console.error(err);
       showToast('⚠️ Gagal terhubung ke Google Sheets, namun data disimpan secara lokal.', 'error');
@@ -1086,8 +1088,8 @@ export default function App() {
                           <td className="p-3 text-rose-300 italic">{log.reason}</td>
                           <td className="p-3 font-mono text-emerald-400 font-bold">{log.tanggalPenerimaan || '-'}</td>
                           <td className="p-3 text-center">
-                            <span className="bg-emerald-950 text-emerald-400 border border-emerald-800/60 px-2 py-0.5 rounded-full text-[10px] font-bold">
-                              Tersimpan
+                            <span className="bg-emerald-950 text-emerald-400 border border-emerald-800/60 px-2 py-0.5 rounded-full text-[10px] font-bold flex items-center justify-center gap-1">
+                              <CheckCircle size={12} /> {log.hasPhoto ? "Tersimpan + Foto" : "Tersimpan"}
                             </span>
                           </td>
                         </tr>
