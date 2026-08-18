@@ -328,9 +328,17 @@ export default function App() {
     setIsSubmitting(true);
     showToast('Sedang menghubungkan ke Google Sheets...', 'info');
 
+    // Tanggal Penerimaan Otomatis (Format DD/MM/YYYY)
+    const todayFormatted = new Date().toLocaleDateString('id-ID', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric'
+    });
+
     const payload = {
       docNumber: formData.docNumber,
       date: formData.date,
+      tanggalPenerimaan: todayFormatted,
       reason: formData.reason,
       sender: formData.senderName,
       receiver: formData.receiverName,
@@ -340,7 +348,8 @@ export default function App() {
         kategori: item.uom,
         qty: item.qty,
         kondisi: `${item.condition}${item.itemReason ? ' - ' + item.itemReason : ''}`,
-        adaGambar: item.image ? "Ada Foto" : "Tidak Ada"
+        adaGambar: item.image ? "Ada Foto" : "Tidak Ada",
+        tanggalPenerimaan: todayFormatted
       }))
     };
 
@@ -364,14 +373,15 @@ export default function App() {
           receiver: formData.receiverName,
           totalItem: items.length,
           totalQty: totalQuantity,
-          reason: formData.reason
+          reason: formData.reason,
+          tanggalPenerimaan: todayFormatted
         },
         ...historyLogs
       ];
       setHistoryLogs(newHistory);
       localStorage.setItem('bapa_history_logs', JSON.stringify(newHistory));
 
-      showToast(`✅ Data Berita Acara ${formData.docNumber} Berhasil Dikirim ke Google Sheets!`, 'success');
+      showToast(`✅ Data Berita Acara ${formData.docNumber} Berhasil Dikirim (Tanggal Penerimaan: ${todayFormatted})!`, 'success');
     } catch (err) {
       console.error(err);
       showToast('⚠️ Gagal terhubung ke Google Sheets, namun data disimpan secara lokal.', 'error');
@@ -1061,6 +1071,7 @@ export default function App() {
                         <th className="p-3">Penerima (Gudang)</th>
                         <th className="p-3">Total Barang</th>
                         <th className="p-3">Alasan</th>
+                        <th className="p-3">Tgl Penerimaan (Kolom M)</th>
                         <th className="p-3 text-center">Status</th>
                       </tr>
                     </thead>
@@ -1073,6 +1084,7 @@ export default function App() {
                           <td className="p-3 text-slate-300">{log.receiver}</td>
                           <td className="p-3 font-bold text-amber-400">{log.totalItem} Item ({log.totalQty} Unit)</td>
                           <td className="p-3 text-rose-300 italic">{log.reason}</td>
+                          <td className="p-3 font-mono text-emerald-400 font-bold">{log.tanggalPenerimaan || '-'}</td>
                           <td className="p-3 text-center">
                             <span className="bg-emerald-950 text-emerald-400 border border-emerald-800/60 px-2 py-0.5 rounded-full text-[10px] font-bold">
                               Tersimpan
